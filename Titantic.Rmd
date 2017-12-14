@@ -1,0 +1,122 @@
+---
+title: "Titanic Wikipedia Data Grab"
+author: "Gina Reynolds"
+date: "12/11/2017"
+output: pdf_document
+---
+
+This file is written to collect the information about those on board Titanic from the Wikipedia pages on passengers and crew. 
+
+```{r}
+library(htmltab)
+library(dplyr)
+library(stringr)
+```
+
+```{r, cache=T}
+if(!dir.exists("RawData")){dir.create("RawData")}
+download.file("https://en.wikipedia.org/wiki/Passengers_of_the_RMS_Titanic",
+              destfile="RawData/Passengers.html")
+download.file("https://en.wikipedia.org/wiki/Crew_of_the_RMS_Titanic", 
+              destfile="RawData/Crew.html")
+```
+
+# Passengers
+```{r}
+url="RawData/Passengers.html"
+Table1=htmltab(url, 1,rm_nodata_cols = F)
+Table2=htmltab(url, 2,rm_nodata_cols = F)
+Table3=htmltab(url, 3,rm_nodata_cols = F)
+Table1$Class="First"
+Table2$Class="Second"
+Table3$Class="Third"
+Passengers=bind_rows(Table1,Table2,Table3);dim(Passengers)
+```
+
+# note wikipedia mistake for passengers for Everett, Washington, USA
+```{r}
+######## passengers #######
+Passengers[str_detect(Passengers$Boarded, "Everett"),]
+Passengers[str_detect(Passengers$Boarded, "Everett"),"Lifeboat"]=14
+Passengers[str_detect(Passengers$Boarded, "Everett"),"Destination"]="Everett, Washington, USA"
+Passengers[str_detect(Passengers$Boarded, "Everett"),"Boarded"]=NA
+Passengers[c(1025,1026),]
+```
+
+
+# Survival is ID'd with Color... html is style in <tr field.
+```{r}
+Lines=readLines(url)
+BeforeTablesLine=which(str_detect(Lines,'<th>Lifeboat'))
+GrabWhich=which(c(rep(T, nrow(Table1)), F, rep(T, nrow(Table2)), F, rep(T, nrow(Table3))))
+TempLines=Lines[BeforeTablesLine[1]:length(Lines)]
+Passengers$Survived=str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[GrabWhich]
+```
+
+# Crew
+```{r}
+##### crew ########
+url="RawData/Crew.html"
+Lines=readLines(url)
+BeforeTablesLine=which(str_detect(Lines,'<th>Hometown'))
+Crew=data_frame()
+for (i in 1:8){
+temp=htmltab(url, i,rm_nodata_cols = F)
+TempLines=Lines[BeforeTablesLine[i]:length(Lines)]
+temp$Survived=str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[1:nrow(temp)]
+Crew=bind_rows(Crew, temp)
+}
+
+Crew$Crew=1
+Table=bind_rows(Passengers,Crew); dim(Table) 
+```
+
+# Join Passenger and Crew Tables
+```{r}
+# Preparation for full join - some people classified as crew and passengers!
+Passengers$Hometown[Passengers$Hometown=="Belfast, Ireland, UK"]="Belfast, Ireland"
+Passengers$Name[Passengers$Name=="Frost, Mr. Anthony Wood \"Archie\""]="Frost, Mr. Anthony Wood"
+Passengers$Name[Passengers$Name=="Frost, Mr. Anthony Wood \"Artie\""]="Frost, Mr. Anthony Wood"
+
+Table=full_join(Passengers,Crew); dim(Table) # 
+Table$Crew[is.na(Table$Crew)]=0
+
+```
+
+
+
+
+# Sex and Age
+```{r}
+# Sex
+Table$sex=NA
+# I inspected titles to see is first names were all male.  There is a Dr. Alice.  
+# I overwrite the case below, designating this individual as female.  
+# Also, any last names like John, Wallace and the like will be overwriten if there is a woman's title.  
+Table$sex[str_detect(Table$Name, "Master |Mr. |Mr |Father |Dr. |Sir |Don |Commander |Captain |Major |Colonel |Reverend |Lieutenant |John |Walter|Georges |Wallace|Theodore |Roger |Percy|George ")]="Male"
+Table$sex[str_detect(Table$Name, "Miss |Mrs.|Doña |Countess |Lady |Alice")]="Female"
+table(Table$sex, as.numeric(Table$Age)>=18, useNA = "ifany")
+table(Table$Survived,Table$Lifeboat)
+Table[is.na(Table$sex),] # These are probably men too - Position Trimmer and Fireman/Stoker
+
+```
+
+
+
+# Age
+```{r}
+# Age
+Table$AgeCharacter=Table$Age
+table(Table$AgeCharacter, useNA = "ifany")
+Table$Age[str_detect(Table$Age,"m")]=0
+Table$Age=as.numeric(Table$Age)
+table(Table$Age, useNA = "ifany")
+```
+
+# Save Data
+```{r}
+if(!dir.exists("DataProducts")){dir.create("DataProducts")}
+save(Table, file = "DataProducts/PeopleOnTitantic.RData")
+write.csv(Table, "DataProducts/PeopleOnTitantic.csv", row.names = F)
+```
+
