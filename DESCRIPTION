@@ -1,0 +1,21 @@
+Package: titanic.complete
+Type: Package
+Title: Complete dataset of Titanic passengers and crew, with detailed information about each person
+Version: 0.1.0
+Authors@R: c( 
+    person("Gina", "Reynolds", , "evangeline.mae@gmail.com", c("cre", "aut")),
+    person("Claus O.", "Wilke", , "wilke@austin.utexas.edu", c("aut")))
+Description: 
+URL: https://github.com/EvaMaeRey/Titantic
+Depends:
+    R (>= 3.2)
+Imports:
+Suggests:
+License: CC0
+LazyData: true
+VignetteBuilder: knitr
+Collate:
+    'data.R'
+    'titanic.complete.R'
+RoxygenNote: 6.0.1
+Roxygen: list(markdown = TRUE)
