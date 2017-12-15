@@ -12,8 +12,12 @@ library(htmltab)
 library(dplyr)
 library(stringr)
 ```
+```{r}
+sessionInfo()
+```
 
-```{r, cache=T}
+# Raw Data
+```{r, eval=FALSE}
 if(!dir.exists("RawData")){dir.create("RawData")}
 download.file("https://en.wikipedia.org/wiki/Passengers_of_the_RMS_Titanic",
               destfile="RawData/Passengers.html")
@@ -50,7 +54,7 @@ Lines=readLines(url)
 BeforeTablesLine=which(str_detect(Lines,'<th>Lifeboat'))
 GrabWhich=which(c(rep(T, nrow(Table1)), F, rep(T, nrow(Table2)), F, rep(T, nrow(Table3))))
 TempLines=Lines[BeforeTablesLine[1]:length(Lines)]
-Passengers$Survived=str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[GrabWhich]
+Passengers$survivaloutcome=str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[GrabWhich]
 ```
 
 # Crew
@@ -63,11 +67,11 @@ Crew=data_frame()
 for (i in 1:8){
 temp=htmltab(url, i,rm_nodata_cols = F)
 TempLines=Lines[BeforeTablesLine[i]:length(Lines)]
-temp$Survived=str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[1:nrow(temp)]
+temp$survivaloutcome=str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[1:nrow(temp)]
 Crew=bind_rows(Crew, temp)
 }
 
-Crew$Crew=1
+Crew$Crew="Crew"
 Table=bind_rows(Passengers,Crew); dim(Table) 
 ```
 
@@ -79,8 +83,8 @@ Passengers$Name[Passengers$Name=="Frost, Mr. Anthony Wood \"Archie\""]="Frost, M
 Passengers$Name[Passengers$Name=="Frost, Mr. Anthony Wood \"Artie\""]="Frost, Mr. Anthony Wood"
 
 Table=full_join(Passengers,Crew); dim(Table) # 
-Table$Crew[is.na(Table$Crew)]=0
-
+Table$Crew[is.na(Table$Crew)]="Not Crew"
+Table$survivaloutcome=ifelse(Table$survivaloutcome, "Survived", "Perished")
 ```
 
 
@@ -96,7 +100,7 @@ Table$sex=NA
 Table$sex[str_detect(Table$Name, "Master |Mr. |Mr |Father |Dr. |Sir |Don |Commander |Captain |Major |Colonel |Reverend |Lieutenant |John |Walter|Georges |Wallace|Theodore |Roger |Percy|George ")]="Male"
 Table$sex[str_detect(Table$Name, "Miss |Mrs.|Doña |Countess |Lady |Alice")]="Female"
 table(Table$sex, as.numeric(Table$Age)>=18, useNA = "ifany")
-table(Table$Survived,Table$Lifeboat)
+table(Table$survivaloutcome,Table$Lifeboat)
 Table[is.na(Table$sex),] # These are probably men too - Position Trimmer and Fireman/Stoker
 
 ```
@@ -113,9 +117,16 @@ Table$Age=as.numeric(Table$Age)
 table(Table$Age, useNA = "ifany")
 ```
 
+# Variable Names to Lower Case
+```{r}
+names(Table)=str_replace(tolower(names(Table))," ","")
+```
+
+
 # Save Data
 ```{r}
 if(!dir.exists("DataProducts")){dir.create("DataProducts")}
+str(Table)
 save(Table, file = "DataProducts/PeopleOnTitantic.RData")
 write.csv(Table, "DataProducts/PeopleOnTitantic.csv", row.names = F)
 ```
