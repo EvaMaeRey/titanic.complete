@@ -5,5 +5,5 @@ This repo includes code to scrape and clean data to create a data frame of peopl
 
 Install:
 ```
-devtools::install_github("EvaMaeRey/Titantic")
+devtools::install_github("EvaMaeRey/titanic.complete")
 ```
