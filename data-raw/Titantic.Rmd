@@ -17,17 +17,23 @@ sessionInfo()
 ```
 
 # Raw Data
-```{r, eval=FALSE}
+```{r}
 if(!dir.exists("RawData")){dir.create("RawData")}
+
+if(!file.exists("RawData/Passengers2017-12-17.html")){
 download.file("https://en.wikipedia.org/wiki/Passengers_of_the_RMS_Titanic",
-              destfile="RawData/Passengers.html")
-download.file("https://en.wikipedia.org/wiki/Crew_of_the_RMS_Titanic", 
-              destfile="RawData/Crew.html")
+              destfile=paste0("RawData/Passengers",Sys.Date(),".html"))
+              }
+
+if(!file.exists("RawData/Crew2017-12-17.html")){
+download.file("https://en.wikipedia.org/wiki/Crew_of_the_RMS_Titanic",
+              destfile=paste0("RawData/Crew",Sys.Date(),".html"))
+              }
 ```
 
 # Passengers
 ```{r}
-url="RawData/Passengers.html"
+url="RawData/Passengers2017-12-17.html"
 Table1=htmltab(url, 1,rm_nodata_cols = F)
 Table2=htmltab(url, 2,rm_nodata_cols = F)
 Table3=htmltab(url, 3,rm_nodata_cols = F)
@@ -60,7 +66,7 @@ Passengers$survivaloutcome=str_detect(TempLines[str_detect(TempLines, "<tr")], "
 # Crew
 ```{r}
 ##### crew ########
-url="RawData/Crew.html"
+url="RawData/Crew2017-12-17.html"
 Lines=readLines(url)
 BeforeTablesLine=which(str_detect(Lines,'<th>Hometown'))
 Crew=data_frame()
