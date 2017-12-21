@@ -4,16 +4,33 @@
 \name{titanic_complete}
 \alias{titanic_complete}
 \title{Complete dataset of titanic passengers and crew.}
-\format{A data frame with 2179 rows and 14 variables:
+\format{A data frame with 2179 rows and 14 variables. Each row corresponds to one person.
+The variables are as follows:
 \describe{
-\item{\code{Name}}{Full name of the person}
-\item{\code{Age}}{Age (in years) of the person}
-\item{\code{...}}{to be completed}
+\item{\code{name}}{Full name of the person}
+\item{\code{age}}{Age (in years) of the person}
+\item{\code{hometown}}{}
+\item{\code{boarded}}{}
+\item{\code{destination}}{}
+\item{\code{lifeboat}}{}
+\item{\code{body}}{}
+\item{\code{class}}{}
+\item{\code{home_country}}{}
+\item{\code{survival_outcome}}{}
+\item{\code{position}}{}
+\item{\code{crew}}{}
+\item{\code{sex}}{}
+\item{\code{age_character}}{Age as character string.}
 }}
 \usage{
 titanic_complete
 }
 \description{
-Detailed description of the dataset and its origin goes here.
+This dataset contains a list of all people on the Titanic,
+including both passengers and crew. We have attempted to make
+this list as complete as possible. The data were downloaded from
+\url{https://en.wikipedia.org/wiki/Passengers_of_the_RMS_Titanic} and
+\url{https://en.wikipedia.org/wiki/Crew_of_the_RMS_Titanic} and then cleaned
+up and verified against Encyclopedia Titanica (\url{https://www.encyclopedia-titanica.org/}).
 }
 \keyword{datasets}

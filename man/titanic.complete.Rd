@@ -6,5 +6,10 @@
 \alias{titanic.complete-package}
 \title{titanic.complete}
 \description{
-titanic.complete
+This package attempts to provide a complete dataset of all people on the Titanic,
+including both passengers and crew. The data are provided in the data frame
+\code{\link{titanic_complete}}.
+}
+\seealso{
+\code{\link{titanic_complete}}
 }

@@ -1,4 +1,4 @@
-"name","age","hometown","boarded","destination","lifeboat","body","class","homecountry","survivaloutcome","position","crew","sex","agecharacter"
+"name","age","hometown","boarded","destination","lifeboat","body","class","home_country","survival_outcome","position","crew","sex","age_character"
 "Allen, Miss Elizabeth Walton",29,"St. Louis, Missouri, US","Southampton","St. Louis, Missouri, US","2",NA,"First",NA,"Survived",NA,"Not Crew","Female","29"
 "Allison, Mr. Hudson Joshua Creighton",30,"Montreal, Quebec, Canada","Southampton","Montreal, Quebec, Canada",NA,"135","First",NA,"Perished",NA,"Not Crew","Male","30"
 "and chauffeur, Mr. George Swane,",19,"Montreal, Quebec, Canada","Southampton","Montreal, Quebec, Canada",NA,"294","First",NA,"Perished",NA,"Not Crew","Male","19"
