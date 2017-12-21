@@ -42,70 +42,85 @@ if (!file.exists(here("data-raw", "RawData", "Crew2017-12-17.html"))) {
 # Passengers
 ```{r}
 url <- here("data-raw", "RawData", "Passengers2017-12-17.html")
-Table1 <- htmltab(url, 1, rm_nodata_cols = F)
-Table2 <- htmltab(url, 2, rm_nodata_cols = F)
-Table3 <- htmltab(url, 3, rm_nodata_cols = F)
-Table1$Class <- "First"
-Table2$Class <- "Second"
-Table3$Class <- "Third"
-Passengers <- bind_rows(Table1, Table2, Table3); dim(Passengers)
+table1 <- htmltab(url, 1, rm_nodata_cols = F)
+table2 <- htmltab(url, 2, rm_nodata_cols = F)
+table3 <- htmltab(url, 3, rm_nodata_cols = F)
+table1$Class <- "First"
+table2$Class <- "Second"
+table3$Class <- "Third"
+passengers <- bind_rows(table1, table2, table3); dim(passengers)
+
+# Names to snake case
+names(passengers) <- str_replace(tolower(names(passengers)), " ", "_")
 ```
 
 # Passengers data cleanup
 
 Note wikipedia mistake for passengers for Everett, Washington, USA.
 ```{r}
-Passengers[str_detect(Passengers$Boarded, "Everett"),]
+passengers[str_detect(passengers$boarded, "Everett"),]
 ```
 Several entries are shifted one column to the left.
 
 ```{r}
-Passengers[str_detect(Passengers$Boarded, "Everett"),"Lifeboat"] <- 14
-Passengers[str_detect(Passengers$Boarded, "Everett"),"Destination"] <- "Everett, Washington, USA"
-Passengers[str_detect(Passengers$Boarded, "Everett"),"Boarded"] <- NA
-Passengers[c(1025,1026),]
+passengers[str_detect(passengers$boarded, "Everett"),"Lifeboat"] <- 14
+passengers[str_detect(passengers$boarded, "Everett"),"Destination"] <- "Everett, Washington, USA"
+passengers[str_detect(passengers$boarded, "Everett"),"Boarded"] <- NA
+passengers[c(1025,1026),]
 ```
 
 
 # Passenger survival
 
-Survival is ID'd with Color. html is style in <tr field.
+Survival is ID'd with Color. html is style in \<tr field.
 ```{r}
-Lines <- readLines(url)
-BeforeTablesLine <- which(str_detect(Lines, '<th>Lifeboat'))
-GrabWhich <- which(c(rep(T, nrow(Table1)), F, rep(T, nrow(Table2)), F, rep(T, nrow(Table3))))
-TempLines <- Lines[BeforeTablesLine[1]:length(Lines)]
-Passengers$survival_outcome <- str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[GrabWhich]
+lines <- readLines(url)
+before_tables_line <- which(str_detect(lines, '<th>Lifeboat'))
+grab_which <- which(c(rep(T, nrow(table1)), F, 
+                      rep(T, nrow(table2)), F, 
+                      rep(T, nrow(table3))))
+temp_lines <- lines[before_tables_line[1]:length(lines)]
+passengers$survival_outcome <- 
+  str_detect(temp_lines[str_detect(temp_lines, "<tr")], "style")[grab_which]
 ```
 
 # Crew
 ```{r}
 url <- here("data-raw", "RawData", "Crew2017-12-17.html")
-Lines <- readLines(url)
-BeforeTablesLine <- which(str_detect(Lines,'<th>Hometown'))
-Crew <- data_frame()
+lines <- readLines(url)
+before_tables_line <- which(str_detect(lines,'<th>Hometown'))
+crew <- data_frame()
 for (i in 1:8){
   temp <- htmltab(url, i,rm_nodata_cols = F)
-  TempLines <- Lines[BeforeTablesLine[i]:length(Lines)]
-  temp$survival_outcome <- str_detect(TempLines[str_detect(TempLines, "<tr")], "style")[1:nrow(temp)]
-  Crew <- bind_rows(Crew, temp)
+  temp_lines <- lines[before_tables_line[i]:length(lines)]
+  temp$survival_outcome <- 
+    str_detect(temp_lines[str_detect(temp_lines, "<tr")], "style")[1:nrow(temp)]
+  crew <- bind_rows(crew, temp)
 }
 
-Crew$Crew <- "Crew"
-Table <- bind_rows(Passengers,Crew); dim(Table) 
+crew$crew <- "Crew"
+
+# convert variable names to snake case
+names(crew) <- str_replace(tolower(names(crew)), " ", "_")
 ```
 
 # Join passenger and crew tables
 
 Preparation for full join. Some people are classified as crew and passengers!
 ```{r}
-Passengers$Hometown[Passengers$Hometown=="Belfast, Ireland, UK"] <- "Belfast, Ireland"
-Passengers$Name[Passengers$Name=="Frost, Mr. Anthony Wood \"Archie\""] <- "Frost, Mr. Anthony Wood"
-Passengers$Name[Passengers$Name=="Frost, Mr. Anthony Wood \"Artie\""] <- "Frost, Mr. Anthony Wood"
+passengers$hometown[passengers$hometown=="Belfast, Ireland, UK"] <- 
+  "Belfast, Ireland"
+passengers$name[passengers$name=="Frost, Mr. Anthony Wood \"Archie\""] <- 
+  "Frost, Mr. Anthony Wood"
+passengers$name[passengers$name=="Frost, Mr. Anthony Wood \"Artie\""] <- 
+  "Frost, Mr. Anthony Wood"
 
-Table <- full_join(Passengers,Crew); dim(Table) # 
-Table$Crew[is.na(Table$Crew)] <- "Not Crew"
-Table$survival_outcome <- ifelse(Table$survival_outcome, "Survived", "Perished")
+dim(passengers)
+dim(crew)
+df <- full_join(passengers,crew)
+dim(df) # 
+df$crew[is.na(df$crew)] <- "Not Crew"
+df$survival_outcome <- ifelse(df$survival_outcome, "Survived", "Perished")
 ```
 
 
@@ -114,30 +129,28 @@ Table$survival_outcome <- ifelse(Table$survival_outcome, "Survived", "Perished")
 
 I inspected titles to see if first names were all male.  There is a Dr. Alice. I overwrite the case below, designating this individual as female. Also, any last names like John, Wallace and the like will be overwriten if there is a woman's title.  
 ```{r}
-# Sex
-Table$sex <- NA
-Table$sex[str_detect(Table$Name, "Master |Mr. |Mr |Father |Dr. |Sir |Don |Commander |Captain |Major |Colonel |Reverend |Lieutenant |John |Walter|Georges |Wallace|Theodore |Roger |Percy|George ")] <- "Male"
-Table$sex[str_detect(Table$Name, "Miss |Mrs.|Doña |Countess |Lady |Alice")] <- "Female"
-table(Table$sex, as.numeric(Table$Age) >= 18, useNA = "ifany")
-table(Table$survival_outcome, Table$Lifeboat)
-Table[is.na(Table$sex),] # These are probably men too - Position Trimmer and Fireman/Stoker
+df$sex <- NA
+df$sex[str_detect(df$name, "Master |Mr. |Mr |Father |Dr. |Sir |Don |Commander |Captain |Major |Colonel |Reverend |Lieutenant |John |Walter|Georges |Wallace|Theodore |Roger |Percy|George ")] <- "Male"
+df$sex[str_detect(df$name, "Miss |Mrs.|Doña |Countess |Lady |Alice")] <- "Female"
+table(df$sex, as.numeric(df$age) >= 18, useNA = "ifany")
+table(df$survival_outcome, df$lifeboat)
+df[is.na(df$sex),] # These are probably men too - Position Trimmer and Fireman/Stoker
 ```
 
 
 
 # Age
 ```{r}
-# Age
-Table$age_character <- Table$Age
-table(Table$age_character, useNA = "ifany")
-Table$Age[str_detect(Table$Age,"m")] <- 0
-Table$Age <- as.numeric(Table$Age)
-table(Table$Age, useNA = "ifany")
+df$age_character <- df$age
+table(df$age_character, useNA = "ifany")
+df$age[str_detect(df$age,"m")] <- 0
+df$age <- as.numeric(df$age)
+table(df$age, useNA = "ifany")
 ```
 
 # Convert variable names to snake case
 ```{r}
-names(Table) <- str_replace(tolower(names(Table)), " ", "_")
+names(df) <- str_replace(tolower(names(df)), " ", "_")
 ```
 
 
@@ -146,11 +159,12 @@ names(Table) <- str_replace(tolower(names(Table)), " ", "_")
 if(!dir.exists(here("data-raw", "DataProducts"))) {
   dir.create(here("data-raw", "DataProducts"))
 }
-str(Table)
-write.csv(Table, here("data-raw", "DataProducts", "PeopleOnTitanic.csv"), row.names = F)
+str(df)
+write.csv(df, here("data-raw", "DataProducts", "PeopleOnTitanic.csv"), 
+          row.names = F)
 
 # rename to final data table name and save for package use
-titanic_complete <- Table 
+titanic_complete <- df 
 devtools::use_data(titanic_complete, overwrite = TRUE)
 ```
 
