@@ -148,9 +148,22 @@ df$age <- as.numeric(df$age)
 table(df$age, useNA = "ifany")
 ```
 
-# Convert variable names to snake case
+# Assistant
+
+Some passangers, especially first class, travel with household assistents. We pull this info off. 
+
 ```{r}
-names(df) <- str_replace(tolower(names(df)), " ", "_")
+df = df %>% 
+  mutate(v=str_extract(name, "^and .+?,")) %>% 
+  mutate(v=str_replace(v, "and ", "")) %>% 
+  mutate(v=str_replace(v, ",", "")) %>%
+  mutate(household_assistant=if_else(is.na(v), "Not Assistant", "Assistant")) %>% 
+  rename(household_assistant_type=v) 
+
+table(df$household_assistant_type)
+table(df$household_assistant)
+
+table(df$household_assistant,df$survival_outcome)
 ```
 
 
