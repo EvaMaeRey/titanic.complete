@@ -12,6 +12,7 @@ library(htmltab)
 library(dplyr)
 library(stringr)
 library(here)
+library(tidyr)
 ```
 ```{r}
 sessionInfo()
@@ -40,6 +41,9 @@ if (!file.exists(here("data-raw", "RawData", "Crew2017-12-17.html"))) {
 ```
 
 # Passengers
+
+We collect data from three tables in the passangers wikipedia page. The tables are of First, Second, and Third class passengers.
+
 ```{r}
 url <- here("data-raw", "RawData", "Passengers2017-12-17.html")
 table1 <- htmltab(url, 1, rm_nodata_cols = F)
@@ -72,7 +76,9 @@ passengers[c(1025,1026),]
 
 # Passenger survival
 
-Survival is ID'd with Color. html is style in \<tr field.
+Survival is indicated with a color in the table. html is style in \<tr field.
+
+
 ```{r}
 lines <- readLines(url)
 before_tables_line <- which(str_detect(lines, '<th>Lifeboat'))
@@ -85,16 +91,24 @@ passengers$survival_outcome <-
 ```
 
 # Crew
+
+There are are eight tables in the webpage that we collect, and combine into one table of crew.
+
 ```{r}
 url <- here("data-raw", "RawData", "Crew2017-12-17.html")
 lines <- readLines(url)
 before_tables_line <- which(str_detect(lines,'<th>Hometown'))
 crew <- data_frame()
+# section heading in Wikipedia before each chart
+crew_types=c("Ship's officers",	"Deck crew", "Engineering crew",  
+             "Victualling crew", "Restaurant staff", "Postal clerks",	
+             "Guarantee group", "Ship's orchestra")
 for (i in 1:8){
-  temp <- htmltab(url, i,rm_nodata_cols = F)
-  temp_lines <- lines[before_tables_line[i]:length(lines)]
-  temp$survival_outcome <- 
+  temp <- htmltab(url, i,rm_nodata_cols = F)  # grabs each table
+  temp_lines <- lines[before_tables_line[i]:length(lines)]  # ids text line before table
+  temp$survival_outcome <-  # using line color to id survival
     str_detect(temp_lines[str_detect(temp_lines, "<tr")], "style")[1:nrow(temp)]
+  temp$crew_type=crew_types[i]  # type of crew member
   crew <- bind_rows(crew, temp)
 }
 
@@ -106,7 +120,8 @@ names(crew) <- str_replace(tolower(names(crew)), " ", "_")
 
 # Join passenger and crew tables
 
-Preparation for full join. Some people are classified as crew and passengers!
+Preparation for full join. Some people are classified as crew and passengers, we need to ensure that their information matches exactly so we have a clean match.
+
 ```{r}
 passengers$hometown[passengers$hometown=="Belfast, Ireland, UK"] <- 
   "Belfast, Ireland"
@@ -118,16 +133,18 @@ passengers$name[passengers$name=="Frost, Mr. Anthony Wood \"Artie\""] <-
 dim(passengers)
 dim(crew)
 df <- full_join(passengers,crew)
-dim(df) # 
+dim(df)  # this should be nine fewer than passangers plus crew 
 df$crew[is.na(df$crew)] <- "Not Crew"
 df$survival_outcome <- ifelse(df$survival_outcome, "Survived", "Perished")
 ```
 
 
 
-# Sex and age
+# Sex
 
-I inspected titles to see if first names were all male.  There is a Dr. Alice. I overwrite the case below, designating this individual as female. Also, any last names like John, Wallace and the like will be overwriten if there is a woman's title.  
+We want to have sex of individuals, but there is not a unique column in the wikipedia data for this information, so we get it based on the names column.  We use titles and profesional titles, as well as names to make these determinations. 
+I inspected professsional titles to see if first names were all male.  There is a Dr. Alice. I overwrite the case below, designating this individual as female. Also, any last names like John, Wallace and the like will be overwriten if there is a woman's title. 
+
 ```{r}
 df$sex <- NA
 df$sex[str_detect(df$name, "Master |Mr. |Mr |Father |Dr. |Sir |Don |Commander |Captain |Major |Colonel |Reverend |Lieutenant |John |Walter|Georges |Wallace|Theodore |Roger |Percy|George ")] <- "Male"
@@ -140,6 +157,9 @@ df[is.na(df$sex),] # These are probably men too - Position Trimmer and Fireman/S
 
 
 # Age
+
+We want to have a numeric age; the current column is a character vector and has information about months old if the individual was an infant.  We save the character information in a new column, and then overwrite the infant age with 0, and then save the age variable as numeric.  
+
 ```{r}
 df$age_character <- df$age
 table(df$age_character, useNA = "ifany")
@@ -150,20 +170,28 @@ table(df$age, useNA = "ifany")
 
 # Assistant
 
-Some passangers, especially first class, travel with household assistents. We pull this info off. 
+Some passangers, especially first class, travel with household assistents. We pull this info the name variable, as the pattern is "and " and then a description of the role.
 
 ```{r}
 df = df %>% 
-  mutate(v=str_extract(name, "^and .+?,")) %>% 
-  mutate(v=str_replace(v, "and ", "")) %>% 
-  mutate(v=str_replace(v, ",", "")) %>%
-  mutate(household_assistant=if_else(is.na(v), "Not Assistant", "Assistant")) %>% 
-  rename(household_assistant_type=v) 
+  mutate(v = str_extract(name, "^and .+?,")) %>% 
+  mutate(v = str_replace(v, "and ", "")) %>% 
+  mutate(v = str_replace(v, ",", "")) %>%
+  mutate(household_assistant = if_else(is.na(v), "Not Assistant", "Assistant")) %>% 
+  rename(household_assistant_type = v) %>% 
+  mutate(q = name) %>% 
+  mutate(q = ifelse(household_assistant=="Assistant", NA, q)) %>% 
+  fill(q) %>% 
+  mutate(q = ifelse(household_assistant=="Assistant", q, NA)) %>% 
+  rename(household_assistant_to_whom = q)
+
 
 table(df$household_assistant_type)
 table(df$household_assistant)
 
-table(df$household_assistant,df$survival_outcome)
+table(df$household_assistant, df$survival_outcome)
+
+
 ```
 
 
