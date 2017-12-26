@@ -1,0 +1,207 @@
+---
+title: "Titanic Wikipedia Data Grab"
+author: "Gina Reynolds, Claus O. Wilke"
+date: "Dec. 2017"
+output: pdf_document
+---
+
+This file is written to collect the information about those on board Titanic from the Wikipedia pages on passengers and crew. 
+
+```{r}
+library(htmltab)
+library(dplyr)
+library(stringr)
+library(here)
+library(tidyr)
+```
+```{r}
+sessionInfo()
+```
+
+# Download raw data from Wikipedia
+
+We grab the passenger and crew tables as raw html files from Wikipedia and store them in directory `./data-raw/RawData` for further processing.
+
+```{r}
+if (!dir.exists(here("data-raw", "RawData"))) {
+  dir.create(here("data-raw", "RawData"))
+}
+
+if (!file.exists(here("data-raw", "RawData", "Passengers2017-12-17.html")))  {
+  download.file("https://en.wikipedia.org/wiki/Passengers_of_the_RMS_Titanic",
+                destfile=here("data-raw", "RawData",
+                              paste0("Passengers", Sys.Date(), ".html")))
+}
+
+if (!file.exists(here("data-raw", "RawData", "Crew2017-12-17.html"))) {
+  download.file("https://en.wikipedia.org/wiki/Crew_of_the_RMS_Titanic",
+                destfile=here("data-raw", "RawData",
+                              paste0("Crew", Sys.Date(), ".html")))
+}
+```
+
+# Passengers
+
+We collect data from three tables in the passangers wikipedia page. The tables are of First, Second, and Third class passengers.
+
+```{r}
+url <- here("data-raw", "RawData", "Passengers2017-12-17.html")
+table1 <- htmltab(url, 1, rm_nodata_cols = F)
+table2 <- htmltab(url, 2, rm_nodata_cols = F)
+table3 <- htmltab(url, 3, rm_nodata_cols = F)
+table1$Class <- "First"
+table2$Class <- "Second"
+table3$Class <- "Third"
+passengers <- bind_rows(table1, table2, table3); dim(passengers)
+
+# Names to snake case
+names(passengers) <- str_replace(tolower(names(passengers)), " ", "_")
+```
+
+# Passengers data cleanup
+
+Note wikipedia mistake for passengers for Everett, Washington, USA.
+```{r}
+passengers[str_detect(passengers$boarded, "Everett"),]
+```
+Several entries are shifted one column to the left.
+
+```{r}
+passengers[str_detect(passengers$boarded, "Everett"),"Lifeboat"] <- 14
+passengers[str_detect(passengers$boarded, "Everett"),"Destination"] <- "Everett, Washington, USA"
+passengers[str_detect(passengers$boarded, "Everett"),"Boarded"] <- NA
+passengers[c(1025,1026),]
+```
+
+
+# Passenger survival
+
+Survival is indicated with a color in the table. html is style in \<tr field.
+
+
+```{r}
+lines <- readLines(url)
+before_tables_line <- which(str_detect(lines, '<th>Lifeboat'))
+grab_which <- which(c(rep(T, nrow(table1)), F, 
+                      rep(T, nrow(table2)), F, 
+                      rep(T, nrow(table3))))
+temp_lines <- lines[before_tables_line[1]:length(lines)]
+passengers$survival_outcome <- 
+  str_detect(temp_lines[str_detect(temp_lines, "<tr")], "style")[grab_which]
+```
+
+# Crew
+
+There are are eight tables in the webpage that we collect, and combine into one table of crew.
+
+```{r}
+url <- here("data-raw", "RawData", "Crew2017-12-17.html")
+lines <- readLines(url)
+before_tables_line <- which(str_detect(lines,'<th>Hometown'))
+crew <- data_frame()
+# section heading in Wikipedia before each chart
+crew_types=c("Ship's officers",	"Deck crew", "Engineering crew",  
+             "Victualling crew", "Restaurant staff", "Postal clerks",	
+             "Guarantee group", "Ship's orchestra")
+for (i in 1:8){
+  temp <- htmltab(url, i,rm_nodata_cols = F)  # grabs each table
+  temp_lines <- lines[before_tables_line[i]:length(lines)]  # ids text line before table
+  temp$survival_outcome <-  # using line color to id survival
+    str_detect(temp_lines[str_detect(temp_lines, "<tr")], "style")[1:nrow(temp)]
+  temp$crew_type=crew_types[i]  # type of crew member
+  crew <- bind_rows(crew, temp)
+}
+
+crew$crew <- "Crew"
+
+# convert variable names to snake case
+names(crew) <- str_replace(tolower(names(crew)), " ", "_")
+```
+
+# Join passenger and crew tables
+
+Preparation for full join. Some people are classified as crew and passengers, we need to ensure that their information matches exactly so we have a clean match.
+
+```{r}
+passengers$hometown[passengers$hometown=="Belfast, Ireland, UK"] <- 
+  "Belfast, Ireland"
+passengers$name[passengers$name=="Frost, Mr. Anthony Wood \"Archie\""] <- 
+  "Frost, Mr. Anthony Wood"
+passengers$name[passengers$name=="Frost, Mr. Anthony Wood \"Artie\""] <- 
+  "Frost, Mr. Anthony Wood"
+
+dim(passengers)
+dim(crew)
+df <- full_join(passengers,crew)
+dim(df)  # this should be nine fewer than passangers plus crew 
+df$crew[is.na(df$crew)] <- "Not Crew"
+df$survival_outcome <- ifelse(df$survival_outcome, "Survived", "Perished")
+```
+
+
+
+# Sex
+
+We want to have sex of individuals, but there is not a unique column in the wikipedia data for this information, so we get it based on the names column.  We use titles and profesional titles, as well as names to make these determinations. 
+I inspected professsional titles to see if first names were all male.  There is a Dr. Alice. I overwrite the case below, designating this individual as female. Also, any last names like John, Wallace and the like will be overwriten if there is a woman's title. 
+
+```{r}
+df$sex <- NA
+df$sex[str_detect(df$name, "Master |Mr. |Mr |Father |Dr. |Sir |Don |Commander |Captain |Major |Colonel |Reverend |Lieutenant |John |Walter|Georges |Wallace|Theodore |Roger |Percy|George ")] <- "Male"
+df$sex[str_detect(df$name, "Miss |Mrs.|Doña |Countess |Lady |Alice")] <- "Female"
+table(df$sex, as.numeric(df$age) >= 18, useNA = "ifany")
+table(df$survival_outcome, df$lifeboat)
+df[is.na(df$sex),] # These are probably men too - Position Trimmer and Fireman/Stoker
+```
+
+
+
+# Age
+
+We want to have a numeric age; the current column is a character vector and has information about months old if the individual was an infant.  We save the character information in a new column, and then overwrite the infant age with 0, and then save the age variable as numeric.  
+
+```{r}
+df$age_character <- df$age
+table(df$age_character, useNA = "ifany")
+df$age[str_detect(df$age,"m")] <- 0
+df$age <- as.numeric(df$age)
+table(df$age, useNA = "ifany")
+```
+
+# Assistant
+
+Some passangers, especially first class, travel with household assistents. We pull this info the name variable, as the pattern is "and " and then a description of the role.  The code depends on the people being in the original order of the wikipedia chart.
+
+```{r}
+df = df %>% 
+  mutate(v = str_extract(name, "^and .+?,")) %>% 
+  mutate(v = str_replace(v, "and ", "")) %>% 
+  mutate(v = str_replace(v, ",", "")) %>%
+  mutate(household_assistant = if_else(is.na(v), "Not Assistant", "Assistant")) %>% 
+  rename(household_assistant_type = v) %>% 
+  mutate(q = name) %>% 
+  mutate(q = ifelse(household_assistant=="Assistant", NA, q)) %>% 
+  fill(q) %>% 
+  mutate(q = ifelse(household_assistant=="Assistant", q, NA)) %>% 
+  rename(household_assistant_to_whom = q)
+
+table(df$household_assistant_type)
+table(df$household_assistant)
+table(df$household_assistant, df$survival_outcome)
+```
+
+
+# Save data
+```{r}
+if(!dir.exists(here("data-raw", "DataProducts"))) {
+  dir.create(here("data-raw", "DataProducts"))
+}
+str(df)
+write.csv(df, here("data-raw", "DataProducts", "PeopleOnTitanic.csv"), 
+          row.names = F)
+
+# rename to final data table name and save for package use
+titanic_complete <- df 
+devtools::use_data(titanic_complete, overwrite = TRUE)
+```
+
